@@ -9,18 +9,32 @@ import {
 	TableRow,
 } from '../../../components/ui/table'
 import { useNavigate } from 'react-router-dom'
-import { useGetContracts } from '../../../hooks/useGetContracts'
-import { Skeleton } from '../../../components/ui/skeleton'
+
+const mockDocuments = [
+	{
+		contractId: 1,
+		templateName: 'Ko‘chmas mulk shartnomasi',
+		recipientBirthDate: '2025-08-01',
+	},
+	{
+		contractId: 2,
+		templateName: 'Avtomobil sotish shartnomasi',
+		recipientBirthDate: '2025-07-20',
+	},
+	{
+		contractId: 3,
+		templateName: 'Ijara shartnomasi',
+		recipientBirthDate: '2025-08-05',
+	},
+]
 
 const Documents = () => {
 	const navigate = useNavigate()
 
-	const { data: documents = [], isLoading, isError } = useGetContracts()
-
 	const [searchId, setSearchId] = useState('')
 	const [searchName, setSearchName] = useState('')
 
-	const filteredDocuments = documents.filter(doc => {
+	const filteredDocuments = mockDocuments.filter(doc => {
 		const idMatch = doc.contractId.toString().includes(searchId)
 		const nameMatch = doc.templateName
 			.toLowerCase()
@@ -39,7 +53,7 @@ const Documents = () => {
 					Hujjat yaratish
 				</button>
 
-				{/* Search Inputs */}
+				{/* Search inputs */}
 				<div className='flex gap-4 mb-4'>
 					<input
 						type='text'
@@ -57,58 +71,45 @@ const Documents = () => {
 					/>
 				</div>
 
-				{/* Loading, Error, Success states */}
-				{isLoading ? (
-					<div className='space-y-4'>
-						{Array.from({ length: 4 }).map((_, i) => (
-							<Skeleton key={i} className='h-5 w-full rounded-md' />
-						))}
-					</div>
-				) : isError ? (
-					<div className='text-red-500 font-medium'>
-						Xatolik yuz berdi. Iltimos sahifani yangilang.
-					</div>
-				) : (
-					<Table className='border-2 bg-white'>
-						<TableHeader>
+				<Table className='border-2 bg-white'>
+					<TableHeader>
+						<TableRow>
+							<TableHead>#</TableHead>
+							<TableHead>ID</TableHead>
+							<TableHead>Nomi</TableHead>
+							<TableHead>Yangilangan vaqti</TableHead>
+							<TableHead>Tahrirlash</TableHead>
+							<TableHead>O'chirish</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{filteredDocuments.length === 0 ? (
 							<TableRow>
-								<TableHead>#</TableHead>
-								<TableHead>ID</TableHead>
-								<TableHead>Nomi</TableHead>
-								<TableHead>Yangilangan vaqti</TableHead>
-								<TableHead>Tahrirlash</TableHead>
-								<TableHead>O'chirish</TableHead>
+								<TableCell colSpan={6} className='text-center text-gray-500'>
+									Hujjat topilmadi.
+								</TableCell>
 							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{filteredDocuments.length === 0 ? (
-								<TableRow>
-									<TableCell colSpan={6} className='text-center text-gray-500'>
-										Hujjat topilmadi.
+						) : (
+							filteredDocuments.map((doc, index) => (
+								<TableRow
+									key={doc.contractId}
+									className='hover:bg-mainColor hover:text-white transition-colors cursor-pointer'
+								>
+									<TableCell>{index + 1}</TableCell>
+									<TableCell>{doc.contractId}</TableCell>
+									<TableCell>{doc.templateName}</TableCell>
+									<TableCell>{doc.recipientBirthDate}</TableCell>
+									<TableCell>
+										<SquarePen className='mx-auto' />
+									</TableCell>
+									<TableCell>
+										<Trash2 className='mx-auto' />
 									</TableCell>
 								</TableRow>
-							) : (
-								filteredDocuments.map((doc, index) => (
-									<TableRow
-										key={doc.contractId}
-										className='hover:bg-mainColor hover:text-white transition-colors cursor-pointer'
-									>
-										<TableCell>{index + 1}</TableCell>
-										<TableCell>{doc.contractId}</TableCell>
-										<TableCell>{doc.templateName}</TableCell>
-										<TableCell>{doc.recipientBirthDate}</TableCell>
-										<TableCell>
-											<SquarePen className='mx-auto' />
-										</TableCell>
-										<TableCell>
-											<Trash2 className='mx-auto' />
-										</TableCell>
-									</TableRow>
-								))
-							)}
-						</TableBody>
-					</Table>
-				)}
+							))
+						)}
+					</TableBody>
+				</Table>
 			</div>
 		</div>
 	)

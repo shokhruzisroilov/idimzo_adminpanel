@@ -41,7 +41,6 @@ const NewsPage = () => {
 		isLoading,
 		error,
 	} = useSelector((state: RootState) => state.news)
-	console.log(newsList)
 
 	useEffect(() => {
 		dispatch(fetchAdminNews())

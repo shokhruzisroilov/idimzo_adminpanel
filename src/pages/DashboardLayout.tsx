@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { useAppDispatch, useAppSelector } from '../redux/store'
-import { fetchCurrentUser } from '../redux/slices/userSlice'
 import { AppSidebar } from '../components/app-sidebar'
 import {
 	SidebarInset,
@@ -9,17 +7,13 @@ import {
 	SidebarTrigger,
 } from '../components/ui/sidebar'
 import Modal from '../components/ui/Modal'
+import { useCurrentUser } from '../hooks/useCurrentUser'
 
 export default function DashboardLayout() {
 	const [isModalOpen, setIsModalOpen] = useState(false)
-	const dispatch = useAppDispatch()
-	const { user, loading } = useAppSelector(state => state.user)
+	const { data: user, isLoading: loading } = useCurrentUser()
 
-	useEffect(() => {
-		dispatch(fetchCurrentUser())
-	}, [dispatch])
-
-	// Avatar va user info
+	// Avatar and user info
 	const avatarUrl =
 		user?.profilePhotoUrl ?? `https://i.pravatar.cc/40?u=${user?.id || 1}`
 	const fullName = user ? `${user.firstName} ${user.lastName}` : ''

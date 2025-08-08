@@ -9,14 +9,12 @@ import {
 import authReducer from './slices/authSlice'
 import categoryReducer from './slices/categorySlice'
 import newsReducer from './slices/newsSlice'
-import userReducer from './slices/userSlice'
 
 export const store = configureStore({
 	reducer: {
 		auth: authReducer,
 		category: categoryReducer,
 		news: newsReducer,
-		user: userReducer,
 	},
 })
 
