@@ -1,301 +1,269 @@
-import { CirclePlus, X } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
-import Quill from "quill";
-import "quill/dist/quill.snow.css";
-import Modal from "./Modal";
-import type { ChangeEvent } from "react";
+import { CirclePlus, X } from 'lucide-react'
+import { useState, useRef } from 'react'
+import type { ChangeEvent } from 'react'
+import { uploadFile } from '../../../services/uploadService'
+import {
+	addDoc,
+	collection,
+	serverTimestamp,
+	Timestamp,
+} from 'firebase/firestore'
+import { db } from '../../../firebase/firebaseConfig'
+import { useNavigate } from 'react-router-dom'
 
-type LanguageCode = "uz" | "uzc" | "kaa" | "ru" | "en";
+type LanguageCode = 'uz' | 'uzc' | 'kaa' | 'ru' | 'en'
 
 interface NotificationFormData {
-  content: string;
-  media: {
-    file: File | null;
-    previewUrl: string;
-  };
+	content: string
+	imageUrl: string
 }
 
 const CreateNotification = () => {
-  const [formData, setFormData] = useState<{
-    [key in LanguageCode]: NotificationFormData;
-  }>({
-    uz: { content: "", media: { file: null, previewUrl: "" } },
-    uzc: { content: "", media: { file: null, previewUrl: "" } },
-    kaa: { content: "", media: { file: null, previewUrl: "" } },
-    ru: { content: "", media: { file: null, previewUrl: "" } },
-    en: { content: "", media: { file: null, previewUrl: "" } },
-  });
+	const navigate = useNavigate()
 
-  const [openModal, setOpenModal] = useState(false);
+	const [formData, setFormData] = useState<{
+		[key in LanguageCode]: NotificationFormData
+	}>({
+		uz: { content: '', imageUrl: '' },
+		uzc: { content: '', imageUrl: '' },
+		kaa: { content: '', imageUrl: '' },
+		ru: { content: '', imageUrl: '' },
+		en: { content: '', imageUrl: '' },
+	})
 
-  // Har bir Quill instansiyasi uchun ref'lar
-  const quillInstances = useRef<{
-    uz: Quill | null;
-    uzc: Quill | null;
-    kaa: Quill | null;
-    ru: Quill | null;
-    en: Quill | null;
-  }>({
-    uz: null,
-    uzc: null,
-    kaa: null,
-    ru: null,
-    en: null,
-  });
+	const [startDate, setStartDate] = useState<string>('')
+	const [endDate, setEndDate] = useState<string>('')
+	const [loadingLang, setLoadingLang] = useState<LanguageCode | null>(null)
+	const [loadingSave, setLoadingSave] = useState(false)
+	const [errors, setErrors] = useState<string[]>([])
 
-  // Har bir editor uchun container ref'lari
-  const editorRefs: Record<LanguageCode, React.RefObject<HTMLDivElement>> = {
-    uz: useRef(null),
-    uzc: useRef(null),
-    kaa: useRef(null),
-    ru: useRef(null),
-    en: useRef(null),
-  };
+	const fileInputRefs: Record<
+		LanguageCode,
+		React.RefObject<HTMLInputElement>
+	> = {
+		uz: useRef(null),
+		uzc: useRef(null),
+		kaa: useRef(null),
+		ru: useRef(null),
+		en: useRef(null),
+	}
 
-  // Fayl input ref'lari
-  const fileInputRefs: Record<LanguageCode, React.RefObject<HTMLInputElement>> = {
-    uz: useRef(null),
-    uzc: useRef(null),
-    kaa: useRef(null),
-    ru: useRef(null),
-    en: useRef(null),
-  };
+	const languages: { code: LanguageCode; label: string }[] = [
+		{ code: 'uz', label: "O'zbekcha Message" },
+		{ code: 'uzc', label: 'Узбекский Message' },
+		{ code: 'kaa', label: 'Qaraqalpaq Message' },
+		{ code: 'ru', label: 'Русский Message' },
+		{ code: 'en', label: 'English Message' },
+	]
 
-  // Quill toolbar sozlamalari
-  const modules = {
-    toolbar: [
-      [{ header: [1, 2, false] }],
-      ["bold", "italic", "underline", "strike"],
-      [{ list: "ordered" }, { list: "bullet" }],
-      ["link", "image"],
-      ["clean"],
-    ],
-  };
+	// Fayl tanlanganda API'ga yuboradi va qaytgan linkni saqlaydi
+	const handleFileChange = async (
+		e: ChangeEvent<HTMLInputElement>,
+		lang: LanguageCode
+	) => {
+		if (e.target.files && e.target.files[0]) {
+			const file = e.target.files[0]
+			try {
+				setLoadingLang(lang)
+				const uploadedUrl = await uploadFile(file) // API return link
+				setFormData(prev => ({
+					...prev,
+					[lang]: { ...prev[lang], imageUrl: uploadedUrl },
+				}))
+			} catch (error) {
+				console.error('File upload failed', error)
+				// optional: push an error message
+			} finally {
+				setLoadingLang(null)
+			}
+		}
+	}
 
-  // Quill muharririni yaratish
-  const setupEditor = (
-    ref: React.RefObject<HTMLDivElement>,
-    key: LanguageCode,
-    value: string,
-    setValue: (langCode: LanguageCode, content: string) => void
-  ) => {
-    if (ref.current && !quillInstances.current[key]) {
-      const quill = new Quill(ref.current, {
-        theme: "snow",
-        modules,
-        placeholder: "Xabarni yozing...",
-      });
+	const handleRemoveFile = (lang: LanguageCode) => {
+		setFormData(prev => ({
+			...prev,
+			[lang]: { ...prev[lang], imageUrl: '' },
+		}))
+		if (fileInputRefs[lang].current) {
+			fileInputRefs[lang].current!.value = ''
+		}
+	}
 
-      // Dastlabki qiymatni o'rnatish
-      if (value) {
-        quill.root.innerHTML = value;
-      }
+	// Validatsiya: kamida uz matn va sanalar kerak
+	const validateForm = () => {
+		const newErrors: string[] = []
+		if (!startDate) newErrors.push('Boshlanish sanasi tanlanmagan')
+		if (!endDate) newErrors.push('Tugash sanasi tanlanmagan')
 
-      // Matn o'zgarganda holatni yangilash
-      quill.on("text-change", () => {
-        setValue(key, quill.root.innerHTML);
-      });
+		if (startDate && endDate && new Date(startDate) >= new Date(endDate)) {
+			newErrors.push('Boshlanish sanasi tugash sanasidan oldin bo‘lishi kerak')
+		}
 
-      quillInstances.current[key] = quill;
-    }
-  };
+		// faqat uz majburiy — agar boshqa tillar ham majburiy bo'lsa bu qatorlarni o'zgartiring
+		if (!formData.uz.content.trim())
+			newErrors.push("O'zbekcha matn kiritilishi shart")
+		// agar rasm ham uz uchun majburiy bo'lsa
+		// if (!formData.uz.imageUrl) newErrors.push("O'zbekcha uchun rasm yuklanmagan")
 
-  // Har bir editorni sozlash
-  useEffect(() => {
-    setupEditor(editorRefs.uz, "uz", formData.uz.content, (langCode, content) =>
-      setFormData((prev) => ({
-        ...prev,
-        [langCode]: { ...prev[langCode], content },
-      }))
-    );
-    setupEditor(
-      editorRefs.uzc,
-      "uzc",
-      formData.uzc.content,
-      (langCode, content) =>
-        setFormData((prev) => ({
-          ...prev,
-          [langCode]: { ...prev[langCode], content },
-        }))
-    );
-    setupEditor(
-      editorRefs.kaa,
-      "kaa",
-      formData.kaa.content,
-      (langCode, content) =>
-        setFormData((prev) => ({
-          ...prev,
-          [langCode]: { ...prev[langCode], content },
-        }))
-    );
-    setupEditor(
-      editorRefs.ru,
-      "ru",
-      formData.ru.content,
-      (langCode, content) =>
-        setFormData((prev) => ({
-          ...prev,
-          [langCode]: { ...prev[langCode], content },
-        }))
-    );
-    setupEditor(
-      editorRefs.en,
-      "en",
-      formData.en.content,
-      (langCode, content) =>
-        setFormData((prev) => ({
-          ...prev,
-          [langCode]: { ...prev[langCode], content },
-        }))
-    );
+		setErrors(newErrors)
+		return newErrors.length === 0
+	}
 
-    // Komponent unmount bo'lganda tozalash
-    return () => {
-      Object.values(quillInstances.current).forEach((quill) => {
-        if (quill) {
-          quill.off("text-change");
-        }
-      });
-    };
-  }, [formData]);
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault()
+		if (!validateForm()) return
 
-  const handleFileChange = (
-    e: ChangeEvent<HTMLInputElement>,
-    langCode: LanguageCode
-  ) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setFormData((prev) => ({
-        ...prev,
-        [langCode]: {
-          ...prev[langCode],
-          media: {
-            file,
-            previewUrl: URL.createObjectURL(file),
-          },
-        },
-      }));
-    }
-  };
+		setLoadingSave(true)
+		try {
+			await addDoc(collection(db, 'notifications'), {
+				content: {
+					uz: formData.uz.content,
+					uzc: formData.uzc.content,
+					kaa: formData.kaa.content,
+					ru: formData.ru.content,
+					en: formData.en.content,
+				},
+				images: {
+					uz: formData.uz.imageUrl || null,
+					uzc: formData.uzc.imageUrl || null,
+					kaa: formData.kaa.imageUrl || null,
+					ru: formData.ru.imageUrl || null,
+					en: formData.en.imageUrl || null,
+				},
+				startDate: Timestamp.fromDate(new Date(startDate)),
+				endDate: Timestamp.fromDate(new Date(endDate)),
+				createdAt: serverTimestamp(),
+			})
+			// muvaffaqiyatli bo'lsa redirect
+			navigate('/notification')
+		} catch (error) {
+			console.error('Error adding notification: ', error)
+			setErrors(['Bildirishnoma saqlashda xatolik yuz berdi'])
+		} finally {
+			setLoadingSave(false)
+		}
+	}
 
-  const handleRemoveFile = (langCode: LanguageCode) => {
-    setFormData((prev) => ({
-      ...prev,
-      [langCode]: {
-        ...prev[langCode],
-        media: { file: null, previewUrl: "" },
-      },
-    }));
-    if (fileInputRefs[langCode].current) {
-      fileInputRefs[langCode].current!.value = "";
-    }
-  };
+	return (
+		<div className='p-6 min-h-[87vh] overflow-hidden'>
+			<h1 className='text-2xl font-bold mb-6'>Bildirishnoma / Qo'shish</h1>
 
-  // Formani yuborish
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // const notificationData = {
-    //   content: {
-    //     uz: formData.uz.content,
-    //     uzc: formData.uzc.content,
-    //     kaa: formData.kaa.content,
-    //     ru: formData.ru.content,
-    //     en: formData.en.content,
-    //   },
-    //   media: {
-    //     uz: formData.uz.media,
-    //     uzc: formData.uzc.media,
-    //     kaa: formData.kaa.media,
-    //     ru: formData.ru.media,
-    //     en: formData.en.media,
-    //   },
-    // };
-    setOpenModal(true);
-  };
+			{errors.length > 0 && (
+				<div className='mb-4 p-3 bg-red-100 text-red-700 rounded'>
+					<ul className='list-disc list-inside'>
+						{errors.map((err, idx) => (
+							<li key={idx}>{err}</li>
+						))}
+					</ul>
+				</div>
+			)}
 
-  const toggleModal = () => {
-    setOpenModal(!openModal);
-  };
+			<form onSubmit={handleSubmit}>
+				{/* Sana tanlash */}
+				<div className='mb-6 flex gap-6'>
+					<div>
+						<label className='block mb-1 font-medium'>Boshlanish sanasi</label>
+						<input
+							type='datetime-local'
+							value={startDate}
+							onChange={e => setStartDate(e.target.value)}
+							className='border rounded px-3 py-2'
+						/>
+					</div>
+					<div>
+						<label className='block mb-1 font-medium'>Tugash sanasi</label>
+						<input
+							type='datetime-local'
+							value={endDate}
+							onChange={e => setEndDate(e.target.value)}
+							className='border rounded px-3 py-2'
+						/>
+					</div>
+				</div>
 
-  const languages: { code: LanguageCode; label: string }[] = [
-    { code: "uz", label: "O'zbekcha Message" },
-    { code: "uzc", label: "Узбекский Message" },
-    { code: "kaa", label: "Qaraqalpaq Message" },
-    { code: "ru", label: "Русский Message" },
-    { code: "en", label: "English Message" },
-  ];
+				{/* Tillar bo'yicha textarea va rasm */}
+				{languages.map(lang => (
+					<div key={lang.code} className='mb-8'>
+						<h2 className='mb-2 text-lg font-semibold'>{lang.label}</h2>
+						<div className='flex gap-4 items-start'>
+							{/* Text area qismi — dizaynni saqlab turadigan konteyner */}
+							<div className='w-[60%] rounded-lg border border-gray-300 bg-white'>
+								<textarea
+									value={formData[lang.code].content}
+									onChange={e =>
+										setFormData(prev => ({
+											...prev,
+											[lang.code]: {
+												...prev[lang.code],
+												content: e.target.value,
+											},
+										}))
+									}
+									placeholder='Xabarni yozing...'
+									className='w-full h-[227px] p-3 resize-none outline-none'
+								/>
+							</div>
 
-  return (
-    <div className="p-6 min-h-[87vh] overflow-hidden">
-      <h1 className="text-2xl font-bold mb-6">Bildirishnoma / Qo'shish</h1>
+							{/* Rasm qismi */}
+							<div className='w-[20%]'>
+								<p className='mb-2 font-medium'>
+									375x816 (WEBP, PNG, JPG)(10MB)*
+								</p>
+								<input
+									type='file'
+									ref={fileInputRefs[lang.code]}
+									onChange={e => handleFileChange(e, lang.code)}
+									accept='.webp,.png,.jpg,.jpeg'
+									className='hidden'
+								/>
+								<button
+									type='button'
+									onClick={() => fileInputRefs[lang.code].current?.click()}
+									className='w-[100px] h-[100px] bg-gray-200 rounded-lg border-dotted border-2 flex items-center justify-center relative overflow-hidden'
+								>
+									{loadingLang === lang.code ? (
+										<span className='text-sm text-gray-500'>
+											Yuklanmoqda...
+										</span>
+									) : formData[lang.code].imageUrl ? (
+										<div className='relative w-full h-full'>
+											<img
+												src={formData[lang.code].imageUrl}
+												alt='Preview'
+												className='w-full h-full object-cover'
+											/>
+											<button
+												type='button'
+												onClick={e => {
+													e.stopPropagation()
+													handleRemoveFile(lang.code)
+												}}
+												className='absolute -top-0 -right-0 bg-red-500 text-white rounded-full p-1'
+											>
+												<X className='w-3 h-3' />
+											</button>
+										</div>
+									) : (
+										<CirclePlus className='w-6 h-6 text-gray-500' />
+									)}
+								</button>
+							</div>
+						</div>
+					</div>
+				))}
 
-      <form onSubmit={handleSubmit}>
-        {languages.map((lang) => (
-          <div key={lang.code} className="mb-8">
-            <h2 className="mb-2 text-lg font-semibold">{lang.label}</h2>
-            <div className="flex gap-4 items-start">
-              <div className="w-[60%] rounded-lg border border-gray-300 bg-white">
-                <div
-                  ref={editorRefs[lang.code]}
-                  style={{ minHeight: "227px" }}
-                />
-              </div>
-              <div className="w-[20%]">
-                <p className="mb-2 font-medium">
-                  375x816 (WEBP, PNG, JPG)(10MB)*
-                </p>
-                <input
-                  type="file"
-                  ref={fileInputRefs[lang.code]}
-                  onChange={(e) => handleFileChange(e, lang.code)}
-                  accept=".webp,.png,.jpg,.jpeg"
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRefs[lang.code].current?.click()}
-                  className="w-[100px] h-[100px] bg-gray-200 rounded-lg border-dotted border-2 flex items-center justify-center relative overflow-hidden"
-                >
-                  {formData[lang.code].media.previewUrl ? (
-                    <div className="relative w-full h-full">
-                      <img
-                        src={formData[lang.code].media.previewUrl}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveFile(lang.code);
-                        }}
-                        className="absolute -top-0 -right-0 bg-red-500 text-white rounded-full p-1"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <CirclePlus className="w-6 h-6 text-gray-500" />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
+				<div className='mt-6'>
+					<button
+						type='submit'
+						disabled={loadingSave}
+						className='px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition'
+					>
+						{loadingSave ? 'Saqlanmoqda...' : 'Bildirishnomani Saqlash'}
+					</button>
+				</div>
+			</form>
+		</div>
+	)
+}
 
-        <div className="mt-6">
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-          >
-            Bildirishnomani Saqlash
-          </button>
-        </div>
-
-        <Modal isOpen={openModal} onClose={toggleModal} />
-      </form>
-    </div>
-  );
-};
-
-export default CreateNotification;
+export default CreateNotification
