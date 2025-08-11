@@ -3,18 +3,18 @@ import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 
 const firebaseConfig = {
-	apiKey: 'AIzaSyCfcMiC5cNHYXh8YgZadt24O8qSrfXZkng',
-	authDomain: 'imzo-2edfa.firebaseapp.com',
-	projectId: 'imzo-2edfa',
-	storageBucket: 'imzo-2edfa.appspot.com',
-	messagingSenderId: '218557214026',
-	appId: '1:218557214026:web:937d57d63ed9af1c3425b3',
-	measurementId: 'G-VC51N3MT25',
+	apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+	authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+	projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+	storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+	messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+	appId: import.meta.env.VITE_FIREBASE_APP_ID,
+	measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 }
 
-// 🔹 Firebase init
+// Firebase ilovasini ishga tushurish
 const app = initializeApp(firebaseConfig)
 
-// 🔹 Firestore & Storage export
+// Firestore va Storage ni export qilish
 export const db = getFirestore(app)
 export const storage = getStorage(app)
